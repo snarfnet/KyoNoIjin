@@ -64,9 +64,9 @@ jobs:
           -authenticationKeyID WDXGY9WX55 \
           -authenticationKeyIssuerID 2be0734f-943a-4d61-9dc9-5d9045c46fec
 
-    - name: Export IPA
+    - name: Upload to App Store Connect
       run: |
-        cat > export_options.plist << 'EOF'
+        cat > upload_options.plist << 'EOF'
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
         <plist version="1.0">
@@ -78,23 +78,15 @@ jobs:
           <key>uploadSymbols</key>
           <false/>
           <key>destination</key>
-          <string>export</string>
+          <string>upload</string>
         </dict>
         </plist>
         EOF
         xcodebuild -exportArchive \
           -archivePath build/KyoNoIjin.xcarchive \
-          -exportPath build/export \
-          -exportOptionsPlist export_options.plist \
+          -exportPath build/upload \
+          -exportOptionsPlist upload_options.plist \
           -allowProvisioningUpdates \
           -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_WDXGY9WX55.p8 \
           -authenticationKeyID WDXGY9WX55 \
           -authenticationKeyIssuerID 2be0734f-943a-4d61-9dc9-5d9045c46fec
-
-    - name: Upload to App Store Connect
-      run: |
-        xcrun altool --upload-app \
-          -f build/export/KyoNoIjin.ipa \
-          -t ios \
-          --apiKey WDXGY9WX55 \
-          --apiIssuer 2be0734f-943a-4d61-9dc9-5d9045c46fec
