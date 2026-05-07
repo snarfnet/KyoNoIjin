@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>今日の偉人（誕生/没）</string>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>毎朝、今日生まれた偉人・亡くなった偉人をお届けします</string>
+	<key>GADApplicationIdentifier</key>
+	<string>ca-app-pub-9404799280370656~3230581412</string>
+	<key>SKAdNetworkItems</key>
+	<array>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>cstr6suwn9.skadnetwork</string>
+		</dict>
+	</array>
+</dict>
+</plist>
