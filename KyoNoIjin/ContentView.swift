@@ -31,7 +31,7 @@ struct ContentView: View {
                     }
                     .padding(.horizontal, 4)
 
-                    if viewModel.isLoading {
+                    if viewModel.isLoading || !viewModel.hasLoadedOnce {
                         LoadingStateView()
                             .frame(maxHeight: .infinity)
                     } else if viewModel.cards.isEmpty {
@@ -164,6 +164,7 @@ struct SwipeHint: View {
 class CardViewModel: ObservableObject {
     @Published var cards: [PersonCard] = []
     @Published var isLoading = false
+    @Published var hasLoadedOnce = false
 
     var todayString: String {
         let formatter = DateFormatter()
@@ -180,6 +181,7 @@ class CardViewModel: ObservableObject {
             print("Error loading cards: \(error)")
         }
         isLoading = false
+        hasLoadedOnce = true
     }
 
     func removeTopCard() {

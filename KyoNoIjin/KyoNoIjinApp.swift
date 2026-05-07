@@ -1,6 +1,7 @@
 import SwiftUI
 import UserNotifications
 import GoogleMobileAds
+import AppTrackingTransparency
 
 @main
 struct KyoNoIjinApp: App {
@@ -17,10 +18,14 @@ struct KyoNoIjinApp: App {
 
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        GADMobileAds.sharedInstance().start(completionHandler: nil)
         UNUserNotificationCenter.current().delegate = self
         requestNotificationPermission()
         scheduleDailyNotification()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            ATTrackingManager.requestTrackingAuthorization { _ in
+                GADMobileAds.sharedInstance().start(completionHandler: nil)
+            }
+        }
         return true
     }
 
