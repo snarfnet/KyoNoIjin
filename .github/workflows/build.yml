@@ -1,91 +1,92 @@
-name: Build and Submit
+name: Build and Upload to App Store
 
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-latest
+
     steps:
-      - uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.2.app
+    - name: Select Xcode
+      run: |
+        XCODE_APP=$(ls /Applications/ | grep "^Xcode_" | sort -V | tail -1)
+        sudo xcode-select -s "/Applications/$XCODE_APP"
+        xcodebuild -version
 
-      - name: Resolve packages
-        run: xcodebuild -resolvePackageDependencies -project KyoNoIjin.xcodeproj -scheme KyoNoIjin
+    - name: Set build number
+      run: |
+        BUILD_NUM=$(( ${{ github.run_number }} + 1 ))
+        echo "BUILD_NUM=$BUILD_NUM" >> $GITHUB_ENV
+        /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUM" KyoNoIjin/Info.plist || /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $BUILD_NUM" KyoNoIjin/Info.plist
 
-      - name: Install signing certificate
-        env:
-          P12_BASE64: ${{ secrets.P12_BASE64 }}
-          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
-        run: |
-          CERT_PATH=$RUNNER_TEMP/cert.p12
-          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
-          echo -n "$P12_BASE64" | base64 --decode -o $CERT_PATH
-          security create-keychain -p "" $KEYCHAIN_PATH
-          security set-keychain-settings $KEYCHAIN_PATH
-          security unlock-keychain -p "" $KEYCHAIN_PATH
-          security import $CERT_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
-          security set-key-partition-list -S apple-tool:,apple: -k "" $KEYCHAIN_PATH
-          security list-keychains -d user -s $KEYCHAIN_PATH login.keychain
+    - name: Resolve packages
+      run: xcodebuild -resolvePackageDependencies -project KyoNoIjin.xcodeproj -scheme KyoNoIjin
 
-      - name: Install provisioning profile
-        env:
-          PROVISIONING_PROFILE_BASE64: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
-        run: |
-          PP_PATH=$RUNNER_TEMP/profile.mobileprovision
-          echo -n "$PROVISIONING_PROFILE_BASE64" | base64 --decode -o $PP_PATH
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin <<< $(/usr/bin/security cms -D -i $PP_PATH))
-          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
+    - name: Import Distribution Certificate
+      env:
+        CERT_BASE64: ${{ secrets.DIST_CERT_BASE64 }}
+        CERT_PASSWORD: ${{ secrets.DIST_CERT_PASSWORD }}
+        KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+      run: |
+        security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+        security default-keychain -s build.keychain
+        security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+        security set-keychain-settings -t 3600 -u build.keychain
+        echo "$CERT_BASE64" | base64 -D > cert.p12
+        security import cert.p12 -k build.keychain -P "$CERT_PASSWORD" -T /usr/bin/codesign
+        security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+        rm cert.p12
 
-      - name: Build archive
-        run: |
-          xcodebuild archive \
-            -project KyoNoIjin.xcodeproj \
-            -scheme KyoNoIjin \
-            -sdk iphoneos \
-            -configuration Release \
-            -archivePath $RUNNER_TEMP/KyoNoIjin.xcarchive \
-            CODE_SIGN_IDENTITY="Apple Distribution: satoshi amasaki (83VGKGSQUH)" \
-            DEVELOPMENT_TEAM=83VGKGSQUH \
-            -allowProvisioningUpdates
+    - name: Set up ASC API Key
+      env:
+        ASC_API_KEY_CONTENT: ${{ secrets.ASC_API_KEY_CONTENT }}
+      run: |
+        mkdir -p ~/.appstoreconnect/private_keys
+        echo "$ASC_API_KEY_CONTENT" | base64 -D > ~/.appstoreconnect/private_keys/AuthKey_WDXGY9WX55.p8
 
-      - name: Export IPA
-        run: |
-          cat > $RUNNER_TEMP/ExportOptions.plist << 'EOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key>
-            <string>app-store-connect</string>
-            <key>teamID</key>
-            <string>83VGKGSQUH</string>
-            <key>uploadSymbols</key>
-            <true/>
-            <key>destination</key>
-            <string>upload</string>
-          </dict>
-          </plist>
-          EOF
-          xcodebuild -exportArchive \
-            -archivePath $RUNNER_TEMP/KyoNoIjin.xcarchive \
-            -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist \
-            -exportPath $RUNNER_TEMP/export
+    - name: Build Archive
+      run: |
+        xcodebuild archive \
+          -project KyoNoIjin.xcodeproj \
+          -scheme KyoNoIjin \
+          -configuration Release \
+          -destination "generic/platform=iOS" \
+          -archivePath build/KyoNoIjin.xcarchive \
+          CODE_SIGN_STYLE=Automatic \
+          DEVELOPMENT_TEAM=83VGKGSQUH \
+          -allowProvisioningUpdates \
+          -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_WDXGY9WX55.p8 \
+          -authenticationKeyID WDXGY9WX55 \
+          -authenticationKeyIssuerID 2be0734f-943a-4d61-9dc9-5d9045c46fec
 
-      - name: Upload to App Store Connect
-        env:
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-          ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
-        run: |
-          mkdir -p ~/.appstoreconnect/private_keys
-          echo "$ASC_KEY_CONTENT" > ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
-          xcrun altool --upload-app \
-            -f $RUNNER_TEMP/export/KyoNoIjin.ipa \
-            -t ios \
-            --apiKey $ASC_KEY_ID \
-            --apiIssuer $ASC_ISSUER_ID
+    - name: Export IPA
+      run: |
+        cat > export_options.plist << 'EOF'
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+          <key>method</key>
+          <string>app-store-connect</string>
+          <key>teamID</key>
+          <string>83VGKGSQUH</string>
+          <key>uploadSymbols</key>
+          <true/>
+          <key>destination</key>
+          <string>upload</string>
+        </dict>
+        </plist>
+        EOF
+        xcodebuild -exportArchive \
+          -archivePath build/KyoNoIjin.xcarchive \
+          -exportPath build/export \
+          -exportOptionsPlist export_options.plist \
+          -allowProvisioningUpdates \
+          -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_WDXGY9WX55.p8 \
+          -authenticationKeyID WDXGY9WX55 \
+          -authenticationKeyIssuerID 2be0734f-943a-4d61-9dc9-5d9045c46fec
