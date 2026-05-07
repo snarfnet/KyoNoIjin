@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"cd /c/Users/Windows && python -c \\\"\\nimport jwt, time, requests, json\\n\\nKEY_ID = 'WDXGY9WX55'\\nISSUER_ID = '2be0734f-943a-4d61-9dc9-5d9045c46fec'\\nAPP_ID = '6767069699'\\n\\nwith open('asc_...",
+  "error": "Exit code 1\nCreate version: 401\r\n{\r\n\t\"errors\": [{\r\n\t\t\"status\": \"401\",\r\n\t\t\"code\": \"NOT_AUTHORIZED\",\r\n\t\t\"title\": \"Authentication credentials are missing or invalid.\",\r\n\t\t\"detail\": \"Provide a properly configured and signed bearer token, and make sure that it has not expired. Learn more about Generating Tokens for API Requests https://developer.apple.com/go/?id=api-generating-tokens\"\r\n\t}]\r\n}",
+  "timestamp": "2026-05-07T00:29:05.909Z",
+  "retry_count": 3
+}
