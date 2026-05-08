@@ -34,6 +34,11 @@ struct ContentView: View {
                     if viewModel.isLoading || !viewModel.hasLoadedOnce {
                         LoadingStateView()
                             .frame(maxHeight: .infinity)
+                    } else if let errorMessage = viewModel.loadError {
+                        ErrorStateView(message: errorMessage) {
+                            Task { await viewModel.loadCards() }
+                        }
+                        .frame(maxHeight: .infinity)
                     } else if viewModel.cards.isEmpty {
                         EmptyStateView {
                             Task { await viewModel.loadCards() }
@@ -143,6 +148,45 @@ struct EmptyStateView: View {
     }
 }
 
+struct ErrorStateView: View {
+    let message: String
+    let retry: () -> Void
+
+    var body: some View {
+        VStack(spacing: 18) {
+            Image(systemName: "wifi.exclamationmark")
+                .font(.system(size: 54, weight: .bold))
+                .foregroundColor(IjinTheme.cinnabar)
+
+            VStack(spacing: 6) {
+                Text("読み込みエラー")
+                    .font(IjinTheme.titleFont)
+                    .foregroundColor(IjinTheme.ink)
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundColor(IjinTheme.ink.opacity(0.62))
+                    .multilineTextAlignment(.center)
+            }
+
+            Button(action: retry) {
+                Label("もう一度読み込む", systemImage: "arrow.clockwise")
+                    .font(.headline)
+                    .foregroundColor(IjinTheme.paper)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 12)
+                    .background(Capsule().fill(IjinTheme.cinnabar))
+            }
+        }
+        .padding(30)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(IjinTheme.paper.opacity(0.78))
+                .shadow(color: IjinTheme.ink.opacity(0.18), radius: 28, y: 16)
+        )
+        .fineBorder(cornerRadius: 20)
+    }
+}
+
 struct SwipeHint: View {
     let title: String
     let icon: String
@@ -165,6 +209,7 @@ class CardViewModel: ObservableObject {
     @Published var cards: [PersonCard] = []
     @Published var isLoading = false
     @Published var hasLoadedOnce = false
+    @Published var loadError: String?
 
     var todayString: String {
         let formatter = DateFormatter()
@@ -175,10 +220,25 @@ class CardViewModel: ObservableObject {
 
     func loadCards() async {
         isLoading = true
+        loadError = nil
         do {
-            cards = try await WikipediaService.shared.fetchTodaysPeople()
+            let result = try await WikipediaService.shared.fetchTodaysPeople(language: "ja")
+            if result.isEmpty {
+                // Japanese API returned empty, try English
+                let enResult = try await WikipediaService.shared.fetchTodaysPeople(language: "en")
+                cards = enResult
+            } else {
+                cards = result
+            }
         } catch {
-            print("Error loading cards: \(error)")
+            // Fallback: try English API
+            do {
+                let enResult = try await WikipediaService.shared.fetchTodaysPeople(language: "en")
+                cards = enResult
+            } catch {
+                print("Error loading cards: \(error)")
+                loadError = "データの読み込みに失敗しました。\nインターネット接続を確認してください。"
+            }
         }
         isLoading = false
         hasLoadedOnce = true

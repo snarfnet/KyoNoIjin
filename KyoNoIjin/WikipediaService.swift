@@ -5,6 +5,13 @@ class WikipediaService {
 
     private let baseURL = "https://api.wikimedia.org/feed/v1/wikipedia"
 
+    private lazy var session: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 15
+        config.timeoutIntervalForResource = 30
+        return URLSession(configuration: config)
+    }()
+
     func fetchTodaysPeople(language: String = "ja") async throws -> [PersonCard] {
         let calendar = Calendar.current
         let now = Date()
@@ -18,11 +25,14 @@ class WikipediaService {
         }
 
         var request = URLRequest(url: url)
-        request.setValue("KyoNoIjin/1.0 (iOS App; contact: dev@example.com)", forHTTPHeaderField: "User-Agent")
+        request.setValue("KyoNoIjin/1.0 (https://snarfnet.github.io/; contact: app@snarfnet.dev)", forHTTPHeaderField: "User-Agent")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            print("WikipediaService: HTTP \(statusCode) for \(urlString)")
             throw WikiError.serverError
         }
 
