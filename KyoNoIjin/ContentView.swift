@@ -46,7 +46,7 @@ struct ContentView: View {
                         .frame(maxHeight: .infinity)
                     } else {
                         ZStack {
-                            ForEach(Array(viewModel.cards.enumerated().reversed().prefix(3)), id: \.element.id) { index, card in
+                            ForEach(Array(viewModel.cards.prefix(3).enumerated().reversed()), id: \.element.id) { index, card in
                                 SwipeCardView(card: card, isTop: index == 0) { direction in
                                     knowledgeStore.recordSwipe(direction)
                                     withAnimation(.spring(response: 0.4)) {
@@ -57,6 +57,7 @@ struct ContentView: View {
                                 .scaleEffect(1.0 - CGFloat(index) * 0.03)
                             }
                         }
+                        .frame(maxWidth: 500)
                         .frame(maxHeight: .infinity)
                     }
 
@@ -222,8 +223,9 @@ class CardViewModel: ObservableObject {
         isLoading = true
         loadError = nil
 
-        // Try Japanese API first, then English
         var result: [PersonCard] = []
+
+        // Try Japanese API first, then English
         do {
             result = try await WikipediaService.shared.fetchTodaysPeople(language: "ja")
             if result.isEmpty {
@@ -234,10 +236,11 @@ class CardViewModel: ObservableObject {
                 result = try await WikipediaService.shared.fetchTodaysPeople(language: "en")
             } catch {
                 print("API error: \(error)")
+                loadError = error.localizedDescription
             }
         }
 
-        // If API returned nothing, use local fallback
+        // Always fall back to local data if API returned nothing
         if result.isEmpty {
             let cal = Calendar.current
             let now = Date()
@@ -245,6 +248,9 @@ class CardViewModel: ObservableObject {
                 for: cal.component(.month, from: now),
                 day: cal.component(.day, from: now)
             )
+            if !result.isEmpty {
+                loadError = nil
+            }
         }
 
         cards = result
