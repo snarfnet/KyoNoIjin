@@ -221,25 +221,33 @@ class CardViewModel: ObservableObject {
     func loadCards() async {
         isLoading = true
         loadError = nil
+
+        // Try Japanese API first, then English
+        var result: [PersonCard] = []
         do {
-            let result = try await WikipediaService.shared.fetchTodaysPeople(language: "ja")
+            result = try await WikipediaService.shared.fetchTodaysPeople(language: "ja")
             if result.isEmpty {
-                // Japanese API returned empty, try English
-                let enResult = try await WikipediaService.shared.fetchTodaysPeople(language: "en")
-                cards = enResult
-            } else {
-                cards = result
+                result = try await WikipediaService.shared.fetchTodaysPeople(language: "en")
             }
         } catch {
-            // Fallback: try English API
             do {
-                let enResult = try await WikipediaService.shared.fetchTodaysPeople(language: "en")
-                cards = enResult
+                result = try await WikipediaService.shared.fetchTodaysPeople(language: "en")
             } catch {
-                print("Error loading cards: \(error)")
-                loadError = "データの読み込みに失敗しました。\nインターネット接続を確認してください。"
+                print("API error: \(error)")
             }
         }
+
+        // If API returned nothing, use local fallback
+        if result.isEmpty {
+            let cal = Calendar.current
+            let now = Date()
+            result = WikipediaService.fallbackCards(
+                for: cal.component(.month, from: now),
+                day: cal.component(.day, from: now)
+            )
+        }
+
+        cards = result
         isLoading = false
         hasLoadedOnce = true
     }
